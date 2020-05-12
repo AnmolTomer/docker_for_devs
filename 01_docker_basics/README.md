@@ -173,3 +173,39 @@ hello-world         latest              bf756fb1ae65        4 months ago        
 - **Some notes from past experiences:**
 1. Don't let your containers fetch dependencies when they start, if you are using things like Node.js and you have your node starts up and then when container starts it fetches its dependencies, then some day, someone will remove some library out from node repos and all of a sudden all your containers just stop, throughout your whole system, and that's awful. Fetch make your containers include their dependencies inside the container themselves, saves a lot of pain in the longer run.
 2. Security tip: Don't leave important things in unnamed stopped containers. Don't do a week's worth of work and just leave it sitting in a stopped container on your laptop. As you will reach the point where you go, oh snap, my disk is full and you will be like alright let's clean some stopped containers and guess what, that week's work, you can kiss goodbye to it.
+
+# Exposing Ports
+
+- Docker is used almost universally, to run network services such as web and database servers. To make this easier, docker offers a wide variety of networking options to connect containers together and to connect containers to the internet. For connecting containers together, docker offers private networks, where we can put each container on a network, and they can talk to each other, but still be isolated from rest of the containers.
+
+- For getting data into and out of the system as a whole, Docker offers the option option of exposing a port or publishing a port, that makes a specific port accessible from outside the machine on Docker which is being hosted. Through the combination of these options one can wire up their networks pretty much in any way they please.
+
+- To expose a particular port, we specify the internal port that the program is listening on, and on what port it should be listening on the outside, also what protocol you'd use. There are many options, we will go over the basic ones here.
+
+- Let's set up a interesting but minimal example to show the flow between several containers. We will start a server, server will accept data from one client, and pass it to another. We will have 2 clients. To start up the server we run `docker run --rm -ti -p 45678:45678 -p 45679:45679 --name echo-server ubuntu bash` we use -p to expose the port on inside to the outside. We give docker container a name specifically . After that on this echo-server container we will start a bare minimum server using netcat utility, it is a good way to show networking without having to get concerned with anything else. `nc -lp 45678 | nc -lp 45679` lp for listen port and using pipe we use the output of that to send it to another program, and this another program will be a copy of netcat program `nc -lp 45679` that means data will get passed into our system on one port.
+
+- Before running net cat make sure to install it by running `apt-get update && apt-get install -y netcat` on your container. After that you can do `nc -lp 45678 | nc -lp 45679`. Now on other terminal connect to that netcat instance we ran before this by doing `nc localhost 45678` and `nc localhost 45679` after this we send some data and we see that data went from the computer to a port exposed on the computer. Got passed into the container on one port, passed between two programs within that container and passed out back to a port running on the host computer. If you have netcat on a docker container but not on your system in that case you can do `docker commit container_name image_tag_name` and you can start that image by doing `docker run --rm -ti image_name bash`, it will start the container which has netcat from the image.
+
+- We start the container with image having netcat but who do we connect to ? Localhost of the container refers to itself. We want to refer to the host computer, if you are running Docker Desktop on a Mac or Windows, this is one of those cases where it is different. Containers are not allowed to directly address the container by IP Address, atleast not reliably, so they have added a special host name for containers to refer to the host machine that is hosting them and that name is `host.docker.internal` so from inside the container we do `nc host.docker.internal 45678` on first docker image and `nc host.docker.internal 45679` in another container.
+
+- If you are on linux just do an `ip add` to get your internal ip address of host and pass it to the docker as you can see below:
+
+![](https://i.imgur.com/idJ9ZC9.png)
+
+- Explicitly setting the external port numbers is very reliable as it leads to us knowing where to find the service always. What if you want 12 containers running ? You can leave off the host side of port definition and docker will fill it in from one of the ports available. This allows many containers running the same programs to share the same host. This is often used with some sort of an orchestration, this is often used with some sort of an orchestration or discovery service like Kubernetes or something similar.
+
+- We run the following command same as we used to run echo server with a slight change that we define only the port seen from inside of the container and we will let the docker choose the port on the outside as per availability we run the following command to start the image having netcat `docker run --rm -ti -p 45678 -p 45679 --name echo-server netcat bash`. Once the container is running we do `nc -lp 45678 | nc -lp 45679`. In other terminal we run `docker port echo-server` to look up the port number assigned on the outside. It gives us the following output:
+
+```bash
+cosmic@fsociety:~$ docker port echo-server
+45678/tcp -> 0.0.0.0:32769
+45679/tcp -> 0.0.0.0:32768
+```
+- Now we insert the dynamically generated port number we can see the output as shown in the image below:
+
+![](https://i.imgur.com/YfoELy1.png)
+
+- In addition to working with TCP as shown in examples above, we will go over now to demonstrate that docker works fine with UDP and other protocols as well.
+- docker run -p outside-port:inside-port /protocol (tcp/udp) can be used. E.g. `docker run -p 1234:1234/udp`
+
+- We run the following `docker run --rm -ti -p 45678 --name echo-server netcat bash` >> Look at the port assigned using `docker port echo-server`, we see that port 32770 is assigned. We start something to listen inside the container by doing `nc -ulp 45678` from terminal we send something by doing `nc -u localhost 32770`.
