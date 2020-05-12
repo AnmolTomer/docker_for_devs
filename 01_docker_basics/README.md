@@ -137,3 +137,39 @@ hello-world         latest              bf756fb1ae65        4 months ago        
 
 - That's all there is to **The Docker Flow.**
 
+# Running things in Docker
+
+- Now that we know docker flow, let's talk about running things in Docker. Let's start off with what we have been using a lot: `docker run`.
+
+- Docker run starts a container by giving an image name and a process to run inside that container. This is the main process to the container. When main process exits the container is done. Container keeps running till the main process is running. If we start other processes in the container later, which we will cover in that case also container still exits when that process finishes.
+
+- Docker containers have **one main process.** Containers can have names. If you don't give a name to container it will make a random one up on its own. If you just want to run a container but you don't want to keep the container afterwards we run it by passing --rm argument. It tells docker to delete container upon exit. Otherwise you do docker run >> exit >> docker rm < container name>
+
+`docker run --rm -ti ubuntu sleep 5`: This will start a container from ubuntu image it will be on for 5 seconds and then exit. See the idea there? We start a process, container existed for the duration of that process, and then poof...vanishes!
+
+- Let's run a fancy container that starts from ubuntu image and starts the bash shell with a few programs to run.
+`docker run --rm --ti ubuntu bash -c "sleep 3; echo all done"`: Here we have one process bash which starts. The bash process starts the sleep command, when sleep is finished it runs the echo. This is very common when we want to do one thing in container and do another thing after that.
+
+- **Leaving Things Running in a Container:** Docker just like tmux (if you have used it) has the idea of detached containers, what this means is you can start a container running and just let it go. That's accomplished by doing `docker run -d -ti ubuntu bash`, it will run it and put it in the background. You can run the `docker ps` command to see the container that is running. `-d` starts the container detached. You can attach to a container by doing `docker attach < container name>`
+
+- If you start a container attached and you want to jump away from it, there's a special sequence to type in that case, and it is `Ctrl+P,Ctrl+Q`, it will exit us out of the container by detaching us from it, but leaves the container running in the background.
+
+- **Running more things in a container:** We started a container, and we want to add another process to a running container, this is really good for debugging, `docker exec`, it won't allow you to add extra fancy stuff with this, you can just start a process and aren't allowed to add more ports or volumes using this method or any stuff you do with docker run.
+
+- To execute a process in a container using docker exec we do `docker exec -ti < container name> bash`. If you exit by Ctrl+D in any of the container the attached one also dies and entire container stops.
+
+# Managing Containers
+
+- Looking at the container output of a container that is already finished can be really frustrating. You start your container it didn't work, you want to know what went wrong in that case `docker logs` command is the way to go. It keeps the output of the container as long as the container is around. You can use `docker  logs container_name` to look at what the output was.
+
+- `docker run --name example -d ubuntu bash -c "lose /etc/password"`: We run a detached container by the name example, we run ubuntu image and we give it a process bash and we want it to run a command line. So we have a terminal running looking at password file. We want to have less but we have typed lose and it will not work. So later on when we just want to see what was the output on detached container we can do `docker logs example`, now as we see error we can go and fix it. Don't let the output of your docker containers get really really large. This is one of the side effects of convenience. It is very convenient to go back and look at it but if you are writing tons and tons of data to the output of the process in your docker container, you can really push docker to the point that your whole system becomes unresponsive.
+
+- **Stopping and removing containers**: You can kill a running container and on doing this it goes to stop state. And when your work is done with container you can do `docker rm container_name` to remove and `docker kill container_name` to stop a container.
+
+- When we are using containers with fixed names and after killing a container you try to create a new container with same name you will get an error that container already exists, it is because you didn't remove the container only stopped it. Run `docker rm container_name` to remove the container. Stopped containers still exist until explicitly removed
+
+- **Resource Constraints**: One of the big features of Docker is the ability to enforce limits on how many resources a container is going to use. We can limit it to a fixed amount of memory. We can do `docker run --memory maximum-allowed-memory image-name command` We can also limit CPU time by doing `docker run --cpu-shares relative to other containers` or we can also set **hard limits** by doing `docker run --cpu-quota` to limit it in general.
+
+- **Some notes from past experiences:**
+1. Don't let your containers fetch dependencies when they start, if you are using things like Node.js and you have your node starts up and then when container starts it fetches its dependencies, then some day, someone will remove some library out from node repos and all of a sudden all your containers just stop, throughout your whole system, and that's awful. Fetch make your containers include their dependencies inside the container themselves, saves a lot of pain in the longer run.
+2. Security tip: Don't leave important things in unnamed stopped containers. Don't do a week's worth of work and just leave it sitting in a stopped container on your laptop. As you will reach the point where you go, oh snap, my disk is full and you will be like alright let's clean some stopped containers and guess what, that week's work, you can kiss goodbye to it.
