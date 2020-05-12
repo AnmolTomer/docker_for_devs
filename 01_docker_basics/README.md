@@ -2,10 +2,10 @@
 
 - We will see how to get started using Docker. We will look at Docker flow and how can one work with containers. We will also build some docker images of our own. We will look at networking and in-depth parts of how docker works.
 
-# What should you know before going to Docker ?
+### What should you know before going to Docker ?
 - Exposure to a CLI is expected, basic networking knowledge is expected, bash and linux shell scripting experience will be helpful.
 
-# What is Docker?
+### What is Docker?
 - Docker fires up a running Linux system into small containers each of which is it's own tightly sealed little world perfect to an app's requirements. Keyword here being **tightly sealed and isolated** from everything else. These containers are designed to be portable so that they can be shipped from one place to another in an attempt to overcome the problem faced by developers from a long time known as **Works on my machine!** Docker does this work of getting these systems to and from your system. Docker also builds these containers for us as well as it is a social platform to help others and find containers with others who may have already built containers for very similar work that you can leverage to your advantage and build on top of.
 
 Let's settle this once and for all: **Docker is NOT VIRTUAL MACHINES.** There is only a single operating system running and that OS is carved up into tiny isolated little spaces.
@@ -35,13 +35,13 @@ Let's settle this once and for all: **Docker is NOT VIRTUAL MACHINES.** There is
 
 - To run docker just type `docker run hello-world` it will fetch the image and run the container.
 
-## Docker Desktop - To Install on Windows and Mac
+### Docker Desktop - To Install on Windows and Mac
 
 - There has been several evolutions of Docker Desktop Experience. The oldest being boot2docker, you will have to remove it completely before you follow the further instructions I provide in this README.md. Docker Desktop is better in most regards, so it's good time to get up-to-date. Well you might think why is Docker desktop needed and is available only for Mac and Windows, it is because on Linux Docker runs natively and for Windows and Mac there is this need to create a linux server which will interact with Docker client running on host OS as explained above.
 
 - **NOTE:** If things appear buggy, start breaking or seem just weird, you should try to go to docker desktop context menu and restart the program. Most of the time it fixes about 99% of problems. In extreme cases quit Docker desktop and start again.
 
-# Docker Installation : Linux
+### Docker Installation : Linux
 - Installing docker on Linux is much more straight forward than other platforms, as it is just another program on Linux. Just do a google search for installing docker on ubuntu and go to the official Docker installation guide which you may find [here](https://docs.docker.com/engine/install/ubuntu/).
 
 - I recommend installing docker-ce as it is much more modern, so follow the command to uninstall previous versions in the link given above.
@@ -94,7 +94,7 @@ ea5ced9babe4        ubuntu:latest       "bash"              3 minutes ago       
 
 - Files go into containers but that does not put them back into the image that the container came from, files stay in container as long as it is running.
 
-# Containers to images
+### Containers to images
 
 - We went from images to a running container, on running the container again, we got the same thing as we got on running it on first time. That's the whole point of images in Docker, i.e. they are fixed points where you know everything's good and you can always start from there. Now when we have a running container, we make changes to that container, we put files there, it is very useful when we want to be able to actually save those files.
 
@@ -137,7 +137,7 @@ hello-world         latest              bf756fb1ae65        4 months ago        
 
 - That's all there is to **The Docker Flow.**
 
-# Running things in Docker
+### Running things in Docker
 
 - Now that we know docker flow, let's talk about running things in Docker. Let's start off with what we have been using a lot: `docker run`.
 
@@ -158,7 +158,7 @@ hello-world         latest              bf756fb1ae65        4 months ago        
 
 - To execute a process in a container using docker exec we do `docker exec -ti < container name> bash`. If you exit by Ctrl+D in any of the container the attached one also dies and entire container stops.
 
-# Managing Containers
+### Managing Containers
 
 - Looking at the container output of a container that is already finished can be really frustrating. You start your container it didn't work, you want to know what went wrong in that case `docker logs` command is the way to go. It keeps the output of the container as long as the container is around. You can use `docker  logs container_name` to look at what the output was.
 
@@ -174,7 +174,7 @@ hello-world         latest              bf756fb1ae65        4 months ago        
 1. Don't let your containers fetch dependencies when they start, if you are using things like Node.js and you have your node starts up and then when container starts it fetches its dependencies, then some day, someone will remove some library out from node repos and all of a sudden all your containers just stop, throughout your whole system, and that's awful. Fetch make your containers include their dependencies inside the container themselves, saves a lot of pain in the longer run.
 2. Security tip: Don't leave important things in unnamed stopped containers. Don't do a week's worth of work and just leave it sitting in a stopped container on your laptop. As you will reach the point where you go, oh snap, my disk is full and you will be like alright let's clean some stopped containers and guess what, that week's work, you can kiss goodbye to it.
 
-# Exposing Ports
+### Exposing Ports
 
 - Docker is used almost universally, to run network services such as web and database servers. To make this easier, docker offers a wide variety of networking options to connect containers together and to connect containers to the internet. For connecting containers together, docker offers private networks, where we can put each container on a network, and they can talk to each other, but still be isolated from rest of the containers.
 
@@ -209,3 +209,67 @@ cosmic@fsociety:~$ docker port echo-server
 - docker run -p outside-port:inside-port /protocol (tcp/udp) can be used. E.g. `docker run -p 1234:1234/udp`
 
 - We run the following `docker run --rm -ti -p 45678 --name echo-server netcat bash` >> Look at the port assigned using `docker port echo-server`, we see that port 32770 is assigned. We start something to listen inside the container by doing `nc -ulp 45678` from terminal we send something by doing `nc -u localhost 32770`.
+
+### Connecting Between Containers
+
+- When we expose a container's port in Docker, Docker creates a network path from, essentially from the outside of that machine down through the networking layers and into that container. That's ideal, and other containers can connect to the container by going out to the host, turning around and coming back in along that path via host into Virtual Network.
+![](https://i.imgur.com/HJGrh7R.png)
+
+- This is useful but there are more efficient ways, to go about it. Docker offers a lot of networking options so that you can have all the freedom when deciding how the containers connect to each other and making sure it is secure. Let's check some features of Docker's virtual network.
+
+- To take a look at existing networks and see what is there by default we do `docker network ls` it shows us three networks which are:
+
+```bash
+cosmic@fsociety:~$ docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+6bbc569f6333        bridge              bridge              local
+d1f1ddfaab06        host                host                local
+d3f3a50e52df        none                null                local
+```
+
+- **Bridge**: It is the network used by containers that do not specify a preference to be put into any other network. Host is when you do not want container to have any network isolation at all. This does have some security concerns, and none is when a container should have no networking enabled.
+
+- Let's create a new docker network to play around. Run command `docker network create learning`. This will create a network named learning. Let's put some machines on that network. Run `docker run --rm -ti --net learning --name catserver ubuntu bash`. Names are very useful when using private networks in docker, because different containers inside the network can refer to each other by those names. So, it makes it very easy for containers to find each other. Try `ping catserver` and this will show that we can send traffic to ourselves.
+
+- Before you do that make sure to install ping command `apt-get update && apt-get -y install iputils-ping && apt install -y netcat` Let's start a dogserver in a similar way.
+
+- On doing ping from catserver to dogserver and dogserver to catserver following is the output:
+
+```bash
+root@9a9b6cd69cc9:/# ping catserver
+PING catserver (172.18.0.2) 56(84) bytes of data.
+64 bytes from catserver.learning (172.18.0.2): icmp_seq=1 ttl=64 time=0.128 ms
+64 bytes from catserver.learning (172.18.0.2): icmp_seq=2 ttl=64 time=0.111 ms
+64 bytes from catserver.learning (172.18.0.2): icmp_seq=3 ttl=64 time=0.048 ms
+64 bytes from catserver.learning (172.18.0.2): icmp_seq=4 ttl=64 time=0.113 ms
+^C
+--- catserver ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3066ms
+rtt min/avg/max/mdev = 0.048/0.100/0.128/0.030 ms
+--------
+root@20fe45aea9ea:/# ping dogserver
+PING dogserver (172.18.0.3) 56(84) bytes of data.
+64 bytes from dogserver.learning (172.18.0.3): icmp_seq=1 ttl=64 time=0.038 ms
+64 bytes from dogserver.learning (172.18.0.3): icmp_seq=2 ttl=64 time=0.053 ms
+64 bytes from dogserver.learning (172.18.0.3): icmp_seq=3 ttl=64 time=0.073 ms
+64 bytes from dogserver.learning (172.18.0.3): icmp_seq=4 ttl=64 time=0.044 ms
+^C
+--- dogserver ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3066ms
+rtt min/avg/max/mdev = 0.038/0.052/0.073/0.013 ms
+```
+
+- We can also do a listen on dogserver by doing `nc -lp 1234`, and we can go to cat server send something to dogserver port 1324 `nc dogserver 1234`. These 2 can communicate bidirectionally. But this is just one network with two machines. Let's make another network by running `docker network create catsonly`. Now we put the catserver on catsonly network by doing `docker network connect catsonly catserver`. Now to make things more interesting, we start another container in a new terminal and do a `docker run --rm -ti --net catsonly --name bobcatserver ubuntu bash`, this way now bobcatserver can ping to catserver as both of them are on catsonly server, catserver can ping to dogserver as well as bobcatserver as it is on learning as well as catsonly network and dogserver can ping only to catserver as those two are on learning network.
+
+![](https://i.imgur.com/IasxE6k.png)
+
+- There are many ways to do what we did above, I just tried to show enough of an example to keep things interesting and to cover about 90% of the use cases.
+
+### Legacy Linking
+
+- In addition to exposing ports and connecting containers together with virtual networks, docker also has a legacy way of linking containers together. It is used in kinda private network scenario, but links are only one way, so we can connect from all ports on one machine to all the ports on the other machine. Bidirectional connections aren't allowed. It gives no information the other way. It gives no information the other way. Also, secrets on the machine being linked, say environment variables with database passwords are visible to any machine that later comes along and decides to link to it. However, reverse is not true, server can't see env variables, on the machine's that choose to link to it. Also this leads to things getting dependent on startup order, which machine is running in order for the other one to connect to it. It makes orchestrating things a lot harder. It is recommended to stick to more modern options, though there are cases where we really want the features this offers. So let's dive into this briefly.
+
+- We create a new container and give it a secret using the foll. command: `docker run --rm -ti -e SECRET=cats_are_yuck --name catserver ubuntu bash`, now we create a dogserver and give it ability to be able to connect to catserver so we create it by typing `docker run --rm -ti --link catserver --name dogserver ubuntu bash` and install netcat as we did above. On catserver we do `nc -lp 1234`, we connect to catserver port 1234 on dogserver by doing `nc catserver 1234` and we send some random text to catserver and it appears as expected, catsever can reply with something as well. Remember **here catserver was listening to port 1234 and dogserver was connected and sending to catserver's 1234 port.**
+
+- Now on dogserver we set up listen on port 1234 of dogserver by `nc -lp 1234` and from catserver we try `nc dogserver 1234` we get an error on catserver as we specified while creating dogserver that dog is linked to catserver but the other way around i.e. connection from catserver to dogserver. So now it is established that links are unidirectional in this case only from dogserver to catserver. As dogserver is linked to catserver the env variable of catserver can be viewed from dogserver and you can check by running `env` on dogserver. Thus, legacy linking operates only in one direction, not the band! There exists another form of linking which is really old, which just sets the IP addresses in environment variables corresponding on both side of the link, this kind of linking is totally unused these days and you should probably avoid it in cases where it still comes up.
+
