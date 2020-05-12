@@ -45,5 +45,95 @@ Let's settle this once and for all: **Docker is NOT VIRTUAL MACHINES.** There is
 - Installing docker on Linux is much more straight forward than other platforms, as it is just another program on Linux. Just do a google search for installing docker on ubuntu and go to the official Docker installation guide which you may find [here](https://docs.docker.com/engine/install/ubuntu/).
 
 - I recommend installing docker-ce as it is much more modern, so follow the command to uninstall previous versions in the link given above.
-- Once installed go to [this](https://docs.docker.com/engine/install/linux-postinstall/) post-installation guide to manage docker as non-root user.
+- Once installed go to [this](https://docs.docker.com/engine/install/linux-postinstall/) post-installation guide to manage docker as non-root user. You might see something similar on running `docker run hello-world` as non root user after following the post-install instructions.
+
+![](https://i.imgur.com/3cOzZTS.png)
+---
+
+# 1.3 Using Docker
+
+- Now we have docker installed on our system let's understand what Docker does. The **Docker Flow** is the fundamental concept. In Docker everything begins with an image. An image is every file that makes up just enough of the OS (minimalistic) to do what we want to do. Traditionally devs installed a whole operating system, with everything for each application that they needed to do. With docker we pair it way down so that we have a little container with just enough of the OS to do what you need to do and we can have lots and lots of these efficiently on a computer.
+
+- To look into your docker images, any guesses what the command might be? Duh!! It's `docker images` no rocket science! It isn't as hard as you thought it would be so far, right :D. I hope so. On running `docker images` we can see from where the image came in form of Repository, there is a tag, which is basically a version number, IMAGE ID is the internal representation of this image. So, one could always refer to a particular image by combination of its name and tag hello-world:latest for example in any command.
+
+- We get the following output on running **docker images**:
+
+```bash
+(base)  cosmic@fsociety ~ $ docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+ubuntu              latest              1d622ef86b13        2 weeks ago         73.9MB
+hello-world         latest              bf756fb1ae65        4 months ago        13.3kB
+```
+
+- Or we can refer to it by its number. It is better this way, as some images don't have a name as it is not necessary. `docker run` command takes an image and turns it into a living running container, with a process in it that's doing something. Let's look at running an image to make a container.
+
+- `docker run -ti ubuntu:latest bash` **ti** stands for terminal interactive, it causes the container shell to have a full terminal within the image so that we can run that shell and get things like tab completion and formatting and things like that. When you are running commands by typing on a keyboard inside an image ti is a very useful flag to put in, after that we specify which image we would like to run by passing `ubuntu:latest` after that we run the bash shell in image.
+
+- `cat /etc/lsb-release` inside our image gives us the following output:
+
+```bash
+root@ea5ced9babe4:/# cat /etc/lsb-release 
+DISTRIB_ID=Ubuntu
+DISTRIB_RELEASE=20.04
+DISTRIB_CODENAME=focal
+DISTRIB_DESCRIPTION="Ubuntu 20.04 LTS"
+```
+- Type `exit` to exit or just hit Ctrl+D.
+
+- `docker ps` : To see our running images, we get the following output:
+
+```bash
+(base)  cosmic@fsociety > ~ > docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+ea5ced9babe4        ubuntu:latest       "bash"              3 minutes ago       Up 3 minutes                            condescending_lamport
+```
+
+- `docker ps` gives us a container ID, and do not confuse this with image ID, these aren't the same things. Images have one set of IDs, containers have their own IDs, these IDs do not overlap and there is no place in docker where you can interchange the image and container IDs. It tells us the image container was created from, command it is running in it, duration since created, Status fo the container and name of the container. As we didn't specify the name when we started this container, docker made a creative name for us. It's similar to what GitHub does with random repo names. Now that's the what's what behind running a container.
+
+- Now this is part is **important crux** as it is what makes Docker different from Virtual machines or running things on a real computer. When we are inside a container we start from an image and that image is fixed, it doesn't change. When we make a container from an image, we do not change the image, so in our container that's running which we made from Ubuntu Image we will create a file, we are at root of file system and we will make a file. `touch TEST_FILE`. Now if we open terminal or a new terminal tab and run the same container again using `docker run -ti ubuntu:latest bash` and if we do a **ls**  we won't be seeing TEST_FILE in container created from same image, if we exit the container one where we created the file and start it up again, we will see file is not there.
+
+- Files go into containers but that does not put them back into the image that the container came from, files stay in container as long as it is running.
+
+# Containers to images
+
+- We went from images to a running container, on running the container again, we got the same thing as we got on running it on first time. That's the whole point of images in Docker, i.e. they are fixed points where you know everything's good and you can always start from there. Now when we have a running container, we make changes to that container, we put files there, it is very useful when we want to be able to actually save those files.
+
+- Next step, in docker flow is a stopped container.
+![](https://i.imgur.com/HJcrvXR.png)
+
+- So the container that is running is alive and has a process in it, when that process exits, the container is still there. So the file we created TEST_FILE, when we exited the container that file is still there, we can go back and find it, it didn't get deleted, it is just that currently that file is in a stopped container and on doing docker run... you start a new container. We can look at most recently exited container using `docker ps` command. Though docker ps shows running containers and stopped containers are not shown by default, so to show the stopped containers we can specify the **-a** argument to see all containers. `docker ps -l` to see last exited container.
+
+- Doing `docker ps -l` you can see that you will get ID, IMAGE, COMMAND and other stuff about the container that was last exited. Looking at container exit codes can be a good clue to figure out why a container died, while you expected that container to be running and you find it to be stopped for some reason. As our containers right now do not have any networking going on that is the reason why we do not have anything under the PORTS section.
+
+- So, now we have a stopped container that has a file in it, which we want to use for the future, next step is `docker commit` command, what it does is takes the containers and makes images out of those images. It doesn't deletes the container, container is still there, now we have an image with the same content which was inside that container.
+
+- So, `docker run` and `docker commit` are complementary to each other. Docker run takes images to containers, and docker commit takes containers back to images. Docker commit doesn't overwrites the image from which container was made. Now we can make a new image.
+
+![](https://i.imgur.com/44pfmE7.png)
+
+- We create a dummy file using `touch DUMMY_IMPORTANT_FILE`, exit the container using Ctrl+D or exit. See the most recently exited container using `docker ps -l`. We get the following :
+
+```bash
+CONTAINER ID        IMAGE               COMMAND       CREATED             STATUS        PORTS               NAMES
+
+cfa719603e99        ubuntu:latest       "bash"   31 minutes ago      Exited (0) 3 seconds ago        funny_ishizaka
+```
+
+- Next we take the container ID and do a `docker commit cfa719603e99`. Now, we have a new image, and origin ubuntu image is unchanged. Last step in docker flow is tag command to give images name. For that we grab the sha256 image ID. and pass it to docker tag command. `docker tag < sha 256> my-image`.
+
+- Now on doing `docker images` we see that my-image is listed in list of images.
+
+```bash
+(base)  cosmic@fsociety~ $ docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED              SIZE
+my-image            latest              e86e6e296cea        About a minute ago   73.9MB
+ubuntu              latest              1d622ef86b13        2 weeks ago          73.9MB
+hello-world         latest              bf756fb1ae65        4 months ago         13.3kB
+```
+
+- You can verify if the created file is still there on that image by running `docker run -ti my-image bash` >> `ls`
+
+- Committing images and then tagging them is such a common pattern that actually it is built right into the docker commit command. We can skip the steps about copying image name over to a `docker tag` command and just run `docker commit < name_of_container> < name you want to be tagged as>` e.g. would be `docker commit optimistic_jepsen my-image-2`.
+
+- That's all there is to **The Docker Flow.**
 
