@@ -320,3 +320,55 @@ Voila! With that you have pushed your first docker image.
 1. Do not push images having passwords, even if those are some layers down. 
 2. Also clean up your images regularly. During the process you will discover the images you really need to keep.
 3. Be aware of how much you are trusting the containers you fetch, check if those are official and trustworthy. Remember to **Trust, but verify!**
+
+---
+
+# 1.4 Building Docker Images
+
+### What are Dockerfiles ?
+
+- So far, we made a couple of Docker images by hands and ran things on them to make containers. Now let's explore building images with code. This is where dockerfiles come handy. Dockerfiles are small programs designed to describe how to build a docker image. We run these programs with docker build command. It usually goes like this `docker build -t name-of-result .` -t is for tag, it basically says when it's built tag it with this name so that it is easy to find later on. `.` at the end specifies where you can find the dockerfile . in this case means that file to build from is in the current directory. When build command finishes, the result will be in your local docker registry, ready to run with `docker run` command.
+
+- Each step produces a new image. There are a series of steps, start with a image, make a container out of it, run something in it, make a new image. The previous image is unchanged, it just says start from that image as base, make a new one with some changes in it. The state is not carried forward from line to line, if you start a program on one line, it runs only for the duration of that line, as a result if a part of your build process is download a large file, do something with it and delete it, if you do all that in one line, then the resulting image will only have the result of that. If you specify download on one line, it will get saved into an image, next line will have that image saved there, and space occupied by big downloaded file will be carried all the way through and your dockerfile will get pretty big. Be careful about operations on large files span lines in dockerfiles.
+
+- You can learn all about dockerfiles [here](https://docs.docker.com/engine/reference/builder/)
+
+- So each step of running a dockerfile is cached. As told above, later steps don't modify the previous step, that means that next time you run your build, if nothing is changed, docker doesn't have to run that step. **Docker can skip lines that have not changed since the last time.** So, let's say your first line is do download a big file, and save the latest copy, and then 20 minutes later you run the command again the file will already have been downloaded, so that line won't be run. This can save huge amounts of time. Though if you wanted to re-download the big file again you'd have to explicitly make it do so.
+
+- A little tip: Put parts of your code that you changed the most at the end of your Dockerfile, that way parts before those steps won't be done again every time you change a part. **Dockerfiles are not shell scripts.** They were designed with syntax that looks like shell scripts, because that helps dockerfiles to be familiar to people, and it makes it a little easier to learn, but dockerfiles aren't shell scripts. 
+
+1. Processes you start on one line, won't be running on the next line. You run the lines, processes run for the duration of that container, then the container gets shut down, saved into an image, and you have a fresh start. So you can't treat those like shell scripts where you start program on one line and after that you send message to program in other line. If you need to have one program start, and after that another program start, those two operations need to be on the same line so that they run in same container.
+2. Environment variables you set will be set on the next line, **if you use the env command**.
+
+### Building Dockerfiles
+
+- Here we create most basic dockerfile. Ref:**./example/**. First line in a Dockerfile specifies what image to start with, where do we begin, we use busybox, it's a very small image with just a shell in it. So starting from busybox > We create a container and in that container we run "building simple docker image" using echo. We get the following output
+
+```bash
+(base)  cosmic@fsociety > ~/Desktop/Link to docker_for_devs/01_docker_basics/example >> master ●>> docker build -t hello .
+Sending build context to Docker daemon  2.048kB
+Step 1/3 : FROM busybox
+latest: Pulling from library/busybox
+e2334dd9fee4: Pull complete 
+Digest: sha256:a8cf7fzzadwdc2afa2a90acd081b484cbded349a704a87bdf37a05279f276bc12
+Status: Downloaded newer image for busybox:latest
+ ---> be58884596ada # Downloaded the image
+Step 2/3 : RUN echo "building simple docker image."
+ ---> Running in 5aa45g34c5e94 # Started from container above, created a container and ran command above
+building simple docker image.
+Removing intermediate container 5aa45g34c5e94 # Removes the container which was intermediate, as no one will use this because it is not referenced elsewhere in Dockerfile
+ ---> 947e002eb3ea 
+Step 3/3 : CMD echo "hello container."
+ ---> Running in a56f88cbfa33
+Removing intermediate container a56f88cbfa33 # Remove intermediate container
+ ---> 65506a7c3bb5 # Final commit
+Successfully built 65506a7c3bb5
+Successfully tagged hello:latest # Final result
+```
+- Now to run the Dockerfile built above we do `docker run --rm hello` and you should see `hello container.` on your terminal.
+
+- Now let's make a slightly more interesting image. Ref:**example2/Dockerfile**
+
+- To run that image we do `docker run --rm -ti debian_notes`
+
+- Now we try to make notes file even more interesting by doing, start with notes file, with some content already in the file, we will start this Dockerfile where example2 left off. Ref:**example3/Dockerfile**.Here we already have a notes.txt file and we try to open this inside the new container we make from notes_debian image. We build this by using `docker build -t notes_v2 .`. We run it using `docker --rm -ti notes_v2`. You will see that inside the container txt file will open in the same state we made changes from host.
