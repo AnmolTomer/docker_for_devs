@@ -422,3 +422,114 @@ Successfully tagged hello:latest # Final result
 5. Use small images such as alpine, if you start with a very large OS as base for your system, that large OS takes large maintenances.
 6. Build images you share publicly from Dockerfiles, always, say you ship your product as Docker images.
 7. Don't ever leave passwords or authentication tokens hidden in deep layers of your docker files.
+
+---
+
+# Docker - Under the Hood
+
+### Docker the Program
+
+- Now a little interlude on what the kernels do, Kernels are either part of a corn, a respectable military rank or decor of every computer you interact with, depending on your perspective. Kernel runs directly on the hardware and it has a bunch of jobs, most of which are pretty simple, and very important.
+
+- **What Kernels Do:**
+
+1. Kernels receives messages from the hardware, a new disk has been attached, a network packet arrived, everything that goes on electrically, bubbles up to the kernel and gets dealt with.
+2. It starts and schedules programs, it says what is allowed to run, what and when.
+3. It lets your computer do all the things, you are asking it to do at the same time.
+4. It controls and it organizes teh storage devices on the computer.
+5. When you say write to this file, Kernel goes like ahh, he says write to the file, he actually means this little spot on the disc. Kernel goes there and writes the data. Someone has to make that decision and that's the role of file system inside the kernel.
+6. It passes messages between the programs, when two programs in the computer want to communicate, or 2 programs on different computers want to communicate over a network, they ask the kernel to pass a message, the kernel passes the message, gets it ready, sends it over to the kernel on the computer, which receives the message, gets it ready for the program, and sends it to program over there.
+7. It allocates memory, CPU, time and bandwidth on network to be given to who, all of that stuff is managed by Kernel.
+
+- **Docker** is a program which manages the Kernel. So, docker is well three things:
+
+1. It is a program written in Go, GO is a nice upcoming systems language and its job is to manage several features of the kernel and use these features to build the concept of containers and images.
+
+2. Manages Kernel Features
+   1. Docker primarily uses c-groups or Control Groups to group processes together and give them the idea of being contained within their own little world, that's what keeps one container from interfering with other container.
+   2. It use namespaces, which is a feature of Linux Kernel which allows it to split the networking stack so you have one set of addresses for one container and another set of addresses for another container and other addresses for things that are not in containers at all.
+   3. It uses copy on write file-systems and various other approached to build the idea of images.
+
+3. Used for years before Docker: Honestly, almost none of what docker does is truly new, docker took things that people were working very hard to do and they made it easy, approachable, and they created a language around it for people to talk about it. And made these things popular.  
+
+- **What docker really does is make scripting distributed systems easy.** And that's the reason it is taking off the way it is. These things used to be something which very large enterprises were able to do with enormous budgets and this is now easily done on anyone's computer, ofcourse the definition of easy is subjective in this case.
+
+- Docker is divided into two programs : **The Client** and **The Server**. These two programs communicate over a socket, that can be a network socket where client runs on one computer, and server runs on a computer somewhere on a cloud provider or they can be running directly on the same hardware or they can be running on the same hardware with the server in a VM which is a common case for people using Docker Desktop.
+
+- In that case client communicates over a network, and sends messages to Docker server to say, make a container, start a container, stop a container etc. etc. When client and server are running on the same computer, they can connect through a special file called a socket. Since client and server can communicate through a file docker can efficiently share files between hosts and containers, it means you can run the client inside Docker itself.
+
+- So traditional Docker scenario with a single host, you have Docker the program, it connects to the socket, sends commands to Docker the program, which is the server side, and that creates containers or deletes containers, all the rest.
+
+![](https://i.imgur.com/1LpYhvQ.png)
+
+- It is pretty easy to run the client inside one of the containers as well and share the socket into that container which allows the same messages, to go through the same socket, get to the server, running on the host and do everything that it would do normally. Let's try that in practice.
+
+-  Idea: **Control docker through its socket.** Docker file will be present at `/var/run/docker.sock` for linux and mac. If you write the proper data into this file in right format, it will cause docker server to do things. We run docker client inside a container and give it access to Docker control socket on our computer using `docker run --rm -ti -v /var/run/docker.sock:/var/run/docker.sock docker sh`, we mount a volume and basically we have given the Docker container a hook for its client to control its own server. After that we use image named docker provided by Docker The Company and we will run just a shell.
+
+-  Once container is ready after image pull, you can check if docker is running by doing `docker info` inside the container. Now we start a new container from a client within container by doing `docker run -ti --rm ubuntu bash`. Now this is not docker inside docker, this is a client within a Docker container, controlling a server that is outside the container. This flexibility in where you control Docker from is one of the key ideas behind Docker, and has been a major contributor to its success and popularity.
+
+### Networking and namespaces
+
+- One of the main things docker does is manage your networking for you to create containers. Let's go over at some of the things docker does for us. First of all, networking is divided into many layers. 
+1. Bottom Layer: This is how machines that are near each other, or containers that are near each other actually talk directly to each other, we call this the **ethernet layer**. It moves little frames of data in a local area.
+
+2. Above that layer we have the **internet protocol layer** or IP, and that is how data moves between the networks, and between systems in different parts of the world.
+
+3. **Routing**: This is how packages get into and out of networks. Docker takes care of setting this as well for us.
+
+4. **Ports:** When we talk about ports throughout this course, we are talking about specific programs running on a specific computer, actually listening to traffic. 
+
+- **Bridging:** Docker uses bridges, to create virtual networks inside our computer. When we create a private network in docker, it creates a bridge. These functions are like software switches, it is equivalent to having a little blue box on your desk and plugging a bunch of different wires into it, except it is all within your computer and you are plugging containers in it with virtual network wires. These bridges are used to control the ethernet layer, containers that actually talk directly to each other.
+
+- Let's look at these bridges, inside a running Docker system. To look at this we will need a system with `brctl` or bridge control program installed, we do so by running container with `docker run --rm -ti --net=host ubuntu bash` **--net=host** this gives container full access to the host's networking stack, turns off all the protections, we start up ubuntu image. Once container starts we do `apt-get update && apt-get install -y bridge-utils`. After this is installed we do `brctl show` and this will show us system has a couple of bridges on it, one is called docker0 which is the Virtual Network used by all machines in Docker that doesn't have their own network. Now if we go to other terminal and create a new network by running `docker network create my-new-network`. Now if we see the bridges using `brctl show` we can see that new network will show up. To further verify you can see the network ID, starting few characters of the network you see by brctl show and after creating the network would be same.
+
+- So, we understand now that docker isn't magically moving packets between containers, it is creating bridges by running commands to configure your system, in that demo we turned off the isolation that prevents containers from messing with the host's network by passing the --net=host option. This is very useful to learn and debug and isn't a good idea to have this turned on for production environment container.
+
+- Moving to next layer, we go over how docker moves packets between networks and containers and that's **Routing**. Docker uses the built-in firewall features of the Linux Kernel, namely the iptables command to create firewall rules that controls when packets gets sent between the bridges and thus becomes available to the containers that are attached to those bridges. This whole system is commonly referred to as NAT, or Network Address Translation. That means when a package is on its way out towards the internet, you change the source address, so it will come back to you.  And when package is on its way in you change the destination address so that it looks like it came directly from the machine you were connecting to. We can take a look at these for our docker container by running `sudo iptables -n -L -t nat` -t stands for table.
+
+- To look at how Docker accomplishes port forwarding under the hood, now we can see how docker actually gets the packets into and out of a container, for this we will need some programs, namely the iptables utility to be available, and that is what docker is there for. So, we run `docker run --rm -ti --net=host --privileged=true --cap-add=NET_ADMIN ubuntu bash`, `--net = host` gives the container direct access to networking, then we will need to further turn off the safeties by running `--privileged=true` which will allow the container to have full control over the system that is hosting it.
+
+- First you will have to start your docker image you will have to enable specific capabilities while running container which can be done by running the following commands: More on this [here](https://unix.stackexchange.com/questions/459206/list-ip-tables-in-docker-container)
+```bash
+docker run --rm -ti --cap-add=NET_ADMIN ubuntu bash
+apt update -y
+apt-get install iptables sudo -y
+sudo iptables -n -L -t nat 
+```
+- On running iptables command we get the following output:
+
+```bash
+root@fsociety:/# iptables -n -L -t nat
+Chain PREROUTING (policy ACCEPT)
+target     prot opt source               destination         
+DOCKER     all  --  0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination         
+DOCKER     all  --  0.0.0.0/0           !127.0.0.0/8          ADDRTYPE match dst-type LOCAL
+
+Chain POSTROUTING (policy ACCEPT)
+target     prot opt source               destination         
+MASQUERADE  all  --  172.18.0.0/16        0.0.0.0/0           
+MASQUERADE  all  --  172.17.0.0/16        0.0.0.0/0           
+
+Chain DOCKER (2 references)
+target     prot opt source               destination         
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0           
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0           
+```
+- Now to make things interesting, let's start a container with some ports to forward to, using `docker run -ti --rm -p 8080:8080 ubuntu bash`
+
+- We map port 8080 on host into port 8080 into container. After starting that container, if we go to our privileged container,  and we run iptables command again, now we see that we have a port forward rule, that says forward anything with destination port 8080, to that docker conatiner's IP address on port 8080.
+
+![](https://i.imgur.com/JB3RDmu.png)
+
+- So, it shows that exposing ports in Docker is just port forwarding at the networking layer. Namespaces are a feature in Linux Kernel that allows us to provide complete network isolation to different processes in the system, so it enforces the rule that you are not allowed to mess with the networking of other processes.
+
+- Processes running in containers are attached to virtual network devices, and those virtual network devices are attached to bridges, which lets them talk to any other containers. Containers have virtual network cards. Each container has their own copy of entire linux networking stack, all the pieces that make up the networking are isolated to each container, so that they can't do things like reach in and reconfigure other containers.
+
+- Namespaces enforce the rule of docker and keep containers safe from each other.
+
