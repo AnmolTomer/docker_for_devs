@@ -533,3 +533,62 @@ RETURN     all  --  0.0.0.0/0            0.0.0.0/0
 
 - Namespaces enforce the rule of docker and keep containers safe from each other.
 
+### Processes and cgroups:
+
+- One of the Docker's job is to manage the processes in containers, keep them isolated and keep them talking to each other where appropriate.
+
+- **Understanding Linux Processes:** Processes comes from other processes, it is a parent-child relationship, just one parent though. When a process exits it returns a code to its parent, the package to the process that started it. And there is a special process, **process zero called init**, that is the process that starts it all and every other process in a linux system comes from dividing that process into other processes. So in docker our container starts with one process called, the init process. That process can then divide into other processes, and do any number of things, often it starts with a shell and that shell splits off and runs commands and runs other processes. When that init process exits, your container just vanishes and other processes that were in it at the time that the init process exits, gets shut down unceremoniously.
+
+- We start an example container by doing `docker run --rm -ti --name hello ubuntu bash`. Now to find the name of root process inside the container, the convenient way to do that is with **docker inspect** command. We run `docker inspect --format '{{.State.Pid}}' helllo` . This command tells the docker that we only want to find out the process id, Pid of the main process in the container called hello. We run this in another terminal. In our case we get the output `12631` as Pid of main process. Now we start a super container with most of the safety features and network isolation turned off using `docker run --rm -ti --privileged=true --pid=host ubuntu bash`, so that we may use it to kill a process in the underlying host without being stopped by Docker, we pass `--privileged=true` to turn off most of the safety features, and `--pid=host` meaning to turn off even more of the safety features, after that we start an ubuntu image, and run it interactive bash. 
+
+- Now that super container running with lots of privileges, we kill the process using `kill 12631`. As soon as you run kill in super container, the hello container exits on its own as we killed its init process.
+
+![](https://i.imgur.com/OeSknuX.png)
+
+- **Resource Limiting**
+
+- A very important job of Docker is to control access to the limited resources on the machine. That's the amount of time the CPU can spend doing things and the amount of memory that can be allocated between the containers. These limitations are inherited and this is very important. If a container is given a certain amount of memory and CPU time, no matter how many processes it starts, the sum total of all those processes cannot exceed the quota that was given to the initial process. Processes in that container can split the  resources amongst themselves, however they would like but can't escape the hard limits that are set by starting more processes in order to consume more limits.
+
+### Storage in Docker
+
+- Let's go over how Docker accomplishes the idea of images and containers. How does docker do the storage behind the containers? Keeping containers isolated, letting them stack on top of each other, all of that stuff requires a little bit of an introduction to the layers of the Unix file systems method. At the very lowest level we have actual thing, stuff that stores bits, **HDDs, thumb drives, network storage devices** etc, hardware things to which we can set a value of 1 or 0 and it will remember it and you can come back later on and get it. The **kernel manages these**.
+
+- On top of those memory devices, it forms them into **logical groups**, you can say these four groups form a RAID array, or two drives should be treated as one drive, or one drive can be treated as separate 432 drives. So, we have a layer that sort of **lets us partition drives arbitrarily into groups and then partition those groups up**. Docker makes extensive use of this capability.
+
+- On top of logical groups called partitions we have **file systems.** This determines which bits on the drive are part of which file. So say, fourth byte in the file foo.txt would be at a particular spot on a particular drive partition, and it is upto the kernel with the file systems to keep track of where that spot actually is. Now on top of all this, you can take programs, and programs can pretend to be file systems, we call these **FUSE file systems**.
+
+- With that in mind, the **Secret to Docker**! The secret to docker and all of its images is COWs.
+
+![](https://i.imgur.com/epLj3h1.png)
+
+- Well not the animal but principle of **Copy on Write**. We start with our base image, this is a cow, it has no spots, now we want to write some spots, instead of writing directly on the cow, as someone else might be working with this image/cow, there might be another container running off of this cow/image right now. 
+
+![](https://i.imgur.com/fJt2M4s.png)
+
+- So we write our spots on a separate layer, right next to Cow and then when we start the container layer the spot and give that to the container. So container sees the image of cow with spots, even though cow image still exists without spots, and others that are still using spotless cow image can continue to do so, now we want these dark spots.
+
+![](https://i.imgur.com/HA1AJyl.png)
+
+- Now somebody else really has a more artistic approach, they like a cow with more light spots, so we start with same image, literally the same image, not a copy of the image, they make their own layer with their own interpretation of how they want their cow spots. They make their own File System layer, and layer it over that image, giving us another cow with different color spots. Called copy on write. When we write to this cow spots, instead of directly writing on the vanilla cow with no spots, we write on our own layer which gets layered on top of the cow, when we want to look at the cow, we look at the entire thing, vanilla cow with our filesystem all embedded into one.
+
+![](https://i.imgur.com/4kla8Ut.png)
+
+- We read from the original and copy when we write. So we have the original image of the cow, unchanged (just one of it), we have 2 resulting images of that cow, each one has different set of layers on top of it, giving us a total of 3 images here and 2 combinations of how base image was layered.
+
+![](https://i.imgur.com/lvzbV1l.png)
+
+- Docker has many different in kernel mechanisms that it uses for managing the COW layers, the copy on write File System layers, and these depend a lot on what is available, on the system its running on. Sometimes it uses BTRFS, sometimes it uses LVM, Logical Volume manager, sometimes it uses the overlay file system. There are many ways and it doesn't really matter as long as it can accomplish layering on its own sort. We don't have to worry about the format of COW on one machine, a copy on write file system, if you want to import that image to another one because what it does it it takes each layer, splits out the layers and makes them into normal gzip files and ships them over the network to you separately and the receiving end of that network connection, the place where you're actually running the docker server, receives all of those layers separately and then puts them together using the file systems that are available on that computer. 
+
+- That was how COWs can move easily between computers. So, containers are independent of the storage engine, we can send images between machines pretty much freely, there is one catch, depending on the storage layer that is in use on a particular machine, it is possible in some cases to run out of layers. Some of the storage engines have a limited number of layers, and others don't. If you make a very deeply nested image on a machine, that allows a great number of layers, and then you package it and try to download it, on a machine that uses a storage engine with less layers, you can run out of layers. It is worth being vaguely aware of though it doesn't comes up that often.
+
+- **Volumes and Bind Mounting:** Another part of images and storage in docker, is how we share volumes and shared folders with the host. These aren't some rocket science concepts that are happening. These are built right into the linux file system, Linux VFS (Virtual file system). Linux file system starts with an assumed root root directory called /, everything is /something. /home/cosmic, /etc/conf etc. / is the root of the tree where it all starts. You attach devices to various points along that / tree. We can also take a directory from anywhere in the File System and just attach it somewhere else, right on top of what is there. Let's take a look at that.
+
+- Now we will demonstrate bind mounting in action, we need a convenient linux system to show it in. Well that's what Docker is for. So we spin up a docker container to work with some safety turned off using `docker run --rm -ti --privileged=true ubuntu bash`. As we want to manipulate the file system, we will have to exceed the default permissions for a Docker container, and to do that we use `--privileged=true`. We make a new directory using `mkdir example` and inside example we make another directory called work. We make some files inside work directory. Go back to example `>> mkdir other-work >> cd other-work/ touch other-a other-b other-c other-d`.
+
+- Go back up to example directory and do `ls -R` to show contents in all directories. Now we do `mount -o bind other-work work` to say attach one directory on top of another. Now if we do `ls -R` it will show us that ./other-work contains other-a other-b other-c other-d and now work has contents of other-work folder layered on top of it. It didn't copy these 4 files, it just took the directory that contained `other-a other-b other-c other-d` and it attached it to the file system right on top of the work directory. It also didn't delete them, they are still there but are just presently covered up.
+
+- We can uncover those files by doing umount work `umount work`. This will unmount the work. Now if we do `ls -R` it will show us that everything is back the way it was before. The files in work were just temporarily covered by another directory. There is an important side effect of this. Which is that you have to **get the mount order correct**. If you want to mount a folder and then a particular file within that folder, you have to do that in that specific order.
+
+- If you mount the file so it bind mounts that file right onto that position and then you mount the folder on top of it, the file will be underneath that folder, and will be hidden. So it is important to get the order of -v for volume arguments to Docker correctly.
+
+- Also remember that mounting volumes always mounts the host's filesystem over the guest. Docker doesn't gives you a way of saying **mount this guest file system into the host preserving what was on guest.** It always chooses to mount the host file system over the guest file system.
