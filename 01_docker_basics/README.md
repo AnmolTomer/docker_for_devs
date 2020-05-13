@@ -399,3 +399,26 @@ Successfully tagged hello:latest # Final result
 
 - **USER**: Says that we want to run the commands as some specific user, say `USER 1000` or `USER cosmic`. This can be useful if you have shared network-directories involved that assume a fixed username or a fixed user number.
 
+### Multi-project Docker files
+
+- When we build docker files that go beyond the very simplest projects, it often runs in two competing desires, on one hand we want Dockerfile to be totally complete, it should have everything required to build this project from scratch, so that years from now we will be absolutely certain, that we can rebuilt it, and that it will have everything. On the other hand we want Dockerfiles to be super small, minimal and really quick to deploy, so people often do things like make two Dockerfile(s) one for the daily life and one for production. These get out of sync and stress follows. Recently a new feature was added to Dockerfile(s) called multi-stage build.
+
+- To show how this works let's start by making a small Dockerfile. Ref:**multi_stage_build/**. We build the dockerfile by doing `docker build -t too_big .` Now when we see size of too_big image it shows that it is like 111 MB and all it does is points out a dozen or so characters on a webpage. Let's see if we can improve that.
+
+- In Dockerfile of multi_stage_build2 we will change the Dockerfile slightly and we call `FROM alpine` and we copy from builder the name we assigned to ubuntu in Dockerfile above and copy google-size. too_big is 111 MB whereas too_big_2 is only 5 MB. Yet all the ability to have reproducable code is completely preserved.
+
+### Golden Images
+
+- Story time folks, long long ago at a tech company right near you, Karen learned about Docker and created a Dockerfile for their new service. It ran fine in production, until one day the site was down and it was an emergency. Alice updated that image, saved it right over the old image, and everyone got on with their day. No one worried about how that image no longer matched the Dockerfile.
+
+- Afterwards Alice and Karen both moved on to new jobs, to bigger and better places, and nobody was ever able to maintain that Dockerfile again. They just kept using it exactly as it was like a golden image, that nobody dares to touch.
+
+- **Some Lessons from that story:**
+
+1. Include installers in your projects, five years from now the installer for version 0.18 if your project will not still be available, include it.
+2. If you depend on a piece of software to build your image, check it into your image, gets good for that.
+3. Have a canonical build system that builds your images from scratch, i.e. start from base image that has not been touched, by anyone in your organization, running a Dockerfile, build it up to the thing that you actually run in production.
+4. Really really avoid the temptation to log in one day, fix the config file, save the image over the same name, and get it back in production. First time you do that, you no longer have a canonical build, you have created the golden image. Docker makes it very very easy to do that and very very difficult to resist.
+5. Use small images such as alpine, if you start with a very large OS as base for your system, that large OS takes large maintenances.
+6. Build images you share publicly from Dockerfiles, always, say you ship your product as Docker images.
+7. Don't ever leave passwords or authentication tokens hidden in deep layers of your docker files.
