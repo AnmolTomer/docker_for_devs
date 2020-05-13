@@ -372,3 +372,30 @@ Successfully tagged hello:latest # Final result
 - To run that image we do `docker run --rm -ti debian_notes`
 
 - Now we try to make notes file even more interesting by doing, start with notes file, with some content already in the file, we will start this Dockerfile where example2 left off. Ref:**example3/Dockerfile**.Here we already have a notes.txt file and we try to open this inside the new container we make from notes_debian image. We build this by using `docker build -t notes_v2 .`. We run it using `docker --rm -ti notes_v2`. You will see that inside the container txt file will open in the same state we made changes from host.
+
+### Dockerfile Syntax
+
+- **FROM Statement:** Used to define the image to download and start from. This must always be the first command in Dockerfile. It's fine to put multiple FROM in a Dockerfile, it means that Dockerfile produces more than one image. Might look like `FROM JAVA:8`
+
+- **MAINTAINER STATEMENT:** This is a bit of a documentation that defines who is responsible and to be contacted for this particular image. e.g. `MAINTAINER Firstname Lastname <email@domain.com>`
+
+- **RUN STATEMENT:** Used to say to RUN a command through the shell, wait for it to finish and save the result. `RUN unzip install.zip /opt/install/` `RUN echo hello docker`
+
+- **ADD** Statement: Adds local files. `ADD run.sh /run.sh` can be used for compressed files to add to container using `ADD project.tar.gz /install/` it notices that it is a compressed archive, and it uncompresses all the files in that archive to the directory specified. Works with URLs as well. Works with URLs as well. Pass in a URL and it will download and put the thing in the folder directed. E.g. `ADD https://project.example.com/download/1.0/project.rpm /project/` will put project.rpm in /project/.
+
+- **ENV** Statement: Sets environment variable, both during duration of Dockerfile, so while image is building and those environment variables will still be set in resulting image. For e.g. if you say `ENV DB_HOST=db.production.example.com` `ENV DB_PORT=5432`
+
+- **ENTRYPOINT AND CMD** Statements: We use the CMD statement previously in the examples. ENTRYPOINT is much like CMD, but it specifies the beginning of the expression to use when starting our container. If container has an entry point of ls, then anything we type after saying `docker run my_image name` would be treated as arguments to the ls command.
+
+- **CMD**: Specified the whole command to run. If person while running the container types something after docker run image name that will be ran instead of command. If you have both ENTRYPOINT and CMD they get combined together. If you want to make something like a program and you do not want people to care that it is running inside a docker container, ENTRYPOINT is to make your containers look like normal programs. If you are unsure use CMD.
+
+- **RUN**: This can take commands to run in two different forms: **Shell** form and **Exec** form. Shell form is what you type into a shell i.e. `nano notes.txt` and this will run inside a shell, exec form is `["/bin/nano", "notes.txt"]` This causes nano to run directly, not surrounded by a call to a shell such as bash. So exec is slightly more efficient. You may use whichever form looks better to you.
+
+- **EXPOSE**: Maps ports into a container, does the same thing as -p 1234:1234.
+
+- **Volume**: Defines shared or ephemeral volumes, depending upon whether we give one or two arguments. If you have 2 arguments it mapps a host path, into a container path such as `VOLUME ["/host/path/", "/container/path/"]` , if you want ephemeral volume that can be inherited by later containers you run `VOLUME ["/shared-data"]`. You should generally avoid using shared folders in Dockerfile, as it means that this Dockerfile will only work on your computer and you will probably want to share it around some-day, or atleast run it on a different computer.
+
+- **WORKDIR**: Sets the directory for the remainder of the Dockerfile, and for resulting container when we run it. It is like typing CD at the beginning of the every run expression after that. So, it's a useful expression to know about.  If you say `WORKDIR /install/` then rest of the statements will happen inside install directory.
+
+- **USER**: Says that we want to run the commands as some specific user, say `USER 1000` or `USER cosmic`. This can be useful if you have shared network-directories involved that assume a fixed username or a fixed user number.
+
