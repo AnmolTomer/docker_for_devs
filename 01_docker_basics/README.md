@@ -273,3 +273,50 @@ rtt min/avg/max/mdev = 0.038/0.052/0.073/0.013 ms
 
 - Now on dogserver we set up listen on port 1234 of dogserver by `nc -lp 1234` and from catserver we try `nc dogserver 1234` we get an error on catserver as we specified while creating dogserver that dog is linked to catserver but the other way around i.e. connection from catserver to dogserver. So now it is established that links are unidirectional in this case only from dogserver to catserver. As dogserver is linked to catserver the env variable of catserver can be viewed from dogserver and you can check by running `env` on dogserver. Thus, legacy linking operates only in one direction, not the band! There exists another form of linking which is really old, which just sets the IP addresses in environment variables corresponding on both side of the link, this kind of linking is totally unused these days and you should probably avoid it in cases where it still comes up.
 
+### Listing and Deleting Images
+
+- We have used lots of images so far in this course, and now let's go over how to manage and keep track of images we are working with in Docker. To list the images that are already downloaded we do `docker images`, it only lists the images that you have downloaded and isn't the tool to find the images to download. Docker is much more efficient and in cases looking at output of docker images is not the right way to estimate the space docker is taking.
+
+- We have already covered tagging images to give them names, we do not have to manually tag images, when we do docker commit docker will tag the images for us, so we can say docker commit container_ID name. We can do `docker ps -l` to look at most recently stopped container. Doing `docker commit container_ID image_12` will create an image with the name but without any tag, to tag an image you should do `docker commit container_ID image_name:tag_name`.
+
+- Images comes from `docker pull` which is run automatically by doing `docker run`, docker pull is better for offline work when you can just pull some images in advanced.
+
+- Opposite of docker pull is `docker push` we will go over this soon.
+
+- **Cleaning Images:** Images  can accumulate quickly, docker rmi i.e. (remove image) takes the image name and tag and can be used in following manner: `docker rmi image_name:tag` and removes the image from your system, or you can do `docker rmi image_ID`
+
+### Listing Volumes
+
+- Now we go over Sharing Data Between Containers. Docker offers this feature called volumes, volumes are sort of shared folders. These are virtual discs inside which we can store data in and share them between the containers, between containers and host or both. There are 2 main varieties of volumes, (virtual discs available within docker)
+we have **persistent** ones we can put data there, and it will be available on the host, and when the container goes away, the data will still be there.
+
+- Another one is **Ephemeral Volumes**, these exist as long as container is using them, but when no container is using them, they vanish, POOF! These volumes will be there as long as these are used and are not permanent. Volumes are not part of images, no part of volumes will be included when you download an image, and no part of volumes will be involved if you upload an image. Volumes are for your local data, local to your particular host.
+
+- First we go over sharing data between the host and the container. These are kind of like shared folders you are used to if you have worked with VM systems before, also let's talk about sharing a file into a container as it is very similar. Let's make a test folder to share with container. To share a folder we do `docker run --rm -ti -v ~/test:/shared-folder ubuntu bash` here first we specify the path of folder we want to share on host i.e. ~/test after that using `:` we specify where to find shared folder in the container in our case it is `/shared-folder`, after volume specification we will put the image name i.e. ubuntu and program to run ,i.e. bash.
+
+- Now using touch we create some files inside /shared-folder and when we exit the container and from host when we check if we have data which we made inside container, it shows us that yeah files which we created inside container/shared-folder are present inside host's ~/test folder. This data survived the container deletion as it was shared with host in a volume. To share a single file just pass the path to the file instead of path to whole folder and it shares a file. Also file must exist before you start the container or it will be assumed to be a directory.
+
+- Sharing Data between Containers: For this we will be using **volumes-from** argument to docker run. These are shared discs that exist only as long as they are being used. When these are shared between containers, these will be common among the containers that are using these discs. Now we can create a volume that is not shared with host by doing `docker run --rm -ti -v /shared-data ubuntu bash`. Now we start another docker container, before that check the name of the container just started and run this `docker run --volumes-from name_of_container_to_be_used ubuntu bash`. Now if we look inside the newly created container's shared-data folder we will see that created file in container one will be visible inside this second container. If we exit the first container and see on second container if data is there inside shared-data folder it will still be there, if we start third container by doing `docker run --rm -ti --volumes-from name_of_second_container ubuntu bash`. So we see that we can have a file originated in some container, inherited by some other container and inherited by some other container, even though machine which created it is gone.
+
+- But important part to understand is when **there is not even a single instance having shared-data volume** in that case data is gone. These can be passed from one container to the next, but these aren't saved and will go away eventually.
+
+### Docker Registries
+
+- We have been using a lot of docker images, without talking about where do these images really come from. Docker images are retrieved through registries and published through registries. Registries are pieces of software. Registries manage and distribute images. You can upload and download images from registries. Docker (the company) makes these registries freely available. You can even run your own registry to make sure data stays safe and private.
+
+- Let's go over finding images to use. You can search straight from the command line by doing docker search. E.g. `docker search tensorflow`, while searching look out for STARS on the docker image, whether it is official or not. If you want a much more GUI based option for doing the same, you can go to [hub.docker.com](https://hub.docker.com).
+
+- You can find a lot more info on using the container on docker hub site. It's good to go over README before starting to work on an image.
+- Now to pull and push an image, you can do so in the following manner:
+```bash
+docker login >> Enter username and password.
+docker pull debian:sid
+docker tag debian:sid anmoltomer/test-image:v1.0
+docker push anmoltomer/test-image:v1.0
+```
+Voila! With that you have pushed your first docker image.
+
+- **Some things to remember:** 
+1. Do not push images having passwords, even if those are some layers down. 
+2. Also clean up your images regularly. During the process you will discover the images you really need to keep.
+3. Be aware of how much you are trusting the containers you fetch, check if those are official and trustworthy. Remember to **Trust, but verify!**
